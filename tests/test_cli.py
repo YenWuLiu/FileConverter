@@ -53,3 +53,36 @@ def test_merge_split_rotate(tmp_path):
     rot = tmp_path / "rot.pdf"
     assert main(["rotate", str(tmp_path / "m2.pdf"), "--angle", "180", "-o", str(rot)]) == 0
     assert PdfReader(str(rot)).pages[0].rotation == 180
+
+
+def test_merge_no_overwrite(tmp_path):
+    import fitz
+
+    def mk(name):
+        doc = fitz.open()
+        doc.new_page()
+        doc.save(str(tmp_path / name))
+        doc.close()
+
+    mk("a.pdf")
+    mk("b.pdf")
+    out = tmp_path / "out.pdf"
+    out.write_bytes(b"keep me")
+    assert main(["merge", str(tmp_path / "a.pdf"), str(tmp_path / "b.pdf"), "-o", str(out)]) == 0
+    assert out.read_bytes() == b"keep me"
+    assert (tmp_path / "out (1).pdf").exists()
+
+
+def test_rotate_no_overwrite(tmp_path):
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
+    doc.save(str(tmp_path / "r.pdf"))
+    doc.close()
+
+    out = tmp_path / "rot.pdf"
+    out.write_bytes(b"keep me")
+    assert main(["rotate", str(tmp_path / "r.pdf"), "--angle", "90", "-o", str(out)]) == 0
+    assert out.read_bytes() == b"keep me"
+    assert (tmp_path / "rot (1).pdf").exists()

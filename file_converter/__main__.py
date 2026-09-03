@@ -62,10 +62,10 @@ def _cmd_convert(args) -> int:
             print(f"[失败] {f}: 文件不存在")
             fail_count += 1
             continue
-        dst = None
-        if args.outdir:
-            dst = registry.unique_path(Path(args.outdir) / (src.stem + "." + args.to.lower().lstrip(".")))
         try:
+            dst = None
+            if args.outdir:
+                dst = registry.unique_path(Path(args.outdir) / (src.stem + "." + args.to.lower().lstrip(".")))
             out = registry.convert(
                 src, args.to, dst,
                 src_encoding=args.src_encoding,
@@ -102,8 +102,9 @@ def main(argv=None) -> int:
         return _cmd_convert(args)
     if args.cmd == "merge":
         try:
-            merge_pdfs([Path(f) for f in args.files], Path(args.output))
-            print(f"[成功] 已合并 → {args.output}")
+            out = registry.unique_path(Path(args.output))
+            merge_pdfs([Path(f) for f in args.files], out)
+            print(f"[成功] 已合并 → {out}")
             return 0
         except ConvertError as e:
             print(f"[失败] {e}")
@@ -119,8 +120,9 @@ def main(argv=None) -> int:
             return 1
     if args.cmd == "rotate":
         try:
-            rotate_pdf(Path(args.file), Path(args.output), args.angle)
-            print(f"[成功] 已旋转 {args.angle}° → {args.output}")
+            out = registry.unique_path(Path(args.output))
+            rotate_pdf(Path(args.file), out, args.angle)
+            print(f"[成功] 已旋转 {args.angle}° → {out}")
             return 0
         except ConvertError as e:
             print(f"[失败] {e}")
