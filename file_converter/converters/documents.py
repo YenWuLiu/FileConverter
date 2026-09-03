@@ -188,20 +188,24 @@ def _pdf_to_docx_com(src: Path, dst: Path) -> None:
 
 @register("pdf", ["docx"], label="PDF→Word")
 def pdf_to_docx(src: Path, dst: Path, **opts):
+    lib_err: Exception | None = None
     if deps.module_available("pdf2docx"):
-        try:
-            from pdf2docx import Converter
+        from pdf2docx import Converter
 
-            cv = Converter(str(src))
-            try:
-                cv.convert(str(dst))
-            finally:
-                cv.close()
-            return
-        except Exception:
+        cv = Converter(str(src))
+        try:
+            cv.convert(str(dst))
+        except Exception as e:  # 只有 convert 失败才清理并回退 COM
+            lib_err = e
             if dst.exists():  # 清掉半成品，避免 Word 覆盖提示
                 dst.unlink()
+        finally:
+            cv.close()  # close 异常直接外抛，不会误删已生成的有效产物
+        if lib_err is None:
+            return
     if deps.office_available():
         _pdf_to_docx_com(src, dst)
         return
+    if lib_err is not None:
+        raise ConvertError(f"PDF 转 Word 失败 {src.name}: {lib_err}") from lib_err
     raise ConvertError("PDF 转 Word 需要 pdf2docx 库或 MS Office")

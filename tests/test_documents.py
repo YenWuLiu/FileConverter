@@ -2,6 +2,8 @@ import csv
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from file_converter import registry
 
 
@@ -111,6 +113,79 @@ def test_pdf_to_docx(tmp_path):
     d = docx.Document(str(out))
     text = "\n".join(par.text for par in d.paragraphs)
     assert "PDF转Word测试文档" in text
+
+
+class _FailingConverter:
+    """假 pdf2docx.Converter：convert 抛异常。"""
+
+    def __init__(self, path):
+        pass
+
+    def convert(self, out):
+        raise RuntimeError("引擎内部错误")
+
+    def close(self):
+        pass
+
+
+def test_pdf_to_docx_pdf2docx_failure_no_office_reports_real_error(tmp_path, monkeypatch):
+    import pdf2docx
+
+    from file_converter import deps
+    from file_converter.converters.base import ConvertError
+
+    p = tmp_path / "a.pdf"
+    p.write_bytes(b"%PDF-fake")
+
+    monkeypatch.setattr(pdf2docx, "Converter", _FailingConverter)
+    monkeypatch.setattr(deps, "office_available", lambda: False)
+
+    with pytest.raises(ConvertError, match="PDF 转 Word 失败 a.pdf"):
+        registry.convert(p, "docx")
+
+
+def test_pdf_to_docx_pdf2docx_failure_falls_back_to_com(tmp_path, monkeypatch):
+    import pdf2docx
+
+    from file_converter import deps
+    from file_converter.converters import documents
+
+    p = tmp_path / "a.pdf"
+    p.write_bytes(b"%PDF-fake")
+
+    monkeypatch.setattr(pdf2docx, "Converter", _FailingConverter)
+    monkeypatch.setattr(deps, "office_available", lambda: True)
+    monkeypatch.setattr(documents, "_pdf_to_docx_com", lambda s, d: d.write_bytes(b"COM-OUT"))
+
+    out = registry.convert(p, "docx")
+    assert out.read_bytes() == b"COM-OUT"
+
+
+def test_pdf_to_docx_close_failure_keeps_valid_output(tmp_path, monkeypatch):
+    import pdf2docx
+
+    from file_converter import deps
+    from file_converter.converters.base import ConvertError
+
+    class CloseBoomConverter:
+        def __init__(self, path):
+            pass
+
+        def convert(self, out):
+            Path(out).write_bytes(b"OK")
+
+        def close(self):
+            raise RuntimeError("close boom")
+
+    p = tmp_path / "a.pdf"
+    p.write_bytes(b"%PDF-fake")
+
+    monkeypatch.setattr(pdf2docx, "Converter", CloseBoomConverter)
+    monkeypatch.setattr(deps, "office_available", lambda: False)
+
+    with pytest.raises(ConvertError):
+        registry.convert(p, "docx")
+    assert (tmp_path / "a.docx").read_bytes() == b"OK"
 
 
 def test_libreoffice_to_pdf_does_not_overwrite_existing(tmp_path, monkeypatch):

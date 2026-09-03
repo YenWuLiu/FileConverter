@@ -4,6 +4,7 @@ import imageio_ffmpeg
 import pytest
 
 from file_converter import registry
+from file_converter.converters.base import ConvertError
 
 
 def _ffmpeg(args):
@@ -59,3 +60,10 @@ def test_available_targets_mp4():
     targets = registry.available_targets("mp4")
     for t in ("mkv", "gif", "mp3"):
         assert t in targets
+
+
+def test_ffmpeg_error_contains_filename(tmp_path):
+    bad = tmp_path / "坏文件.mp4"
+    bad.write_bytes(b"not a video")
+    with pytest.raises(ConvertError, match="ffmpeg 转换失败 坏文件"):
+        registry.convert(bad, "mkv")
