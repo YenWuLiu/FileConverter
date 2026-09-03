@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .base import ConvertError, register
+from .base import register
 
 IMG_FORMATS = ["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "ico"]
 

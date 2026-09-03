@@ -56,6 +56,14 @@ def test_xml_to_json(tmp_path):
     assert data["root"]["item"][0]["#text"] == "hi"
 
 
+def test_xml_to_json_with_encoding_declaration(tmp_path):
+    src = tmp_path / "decl.xml"
+    src.write_text("<?xml version=\"1.0\" encoding=\"UTF-8\"?><root><a>你好</a></root>", encoding="utf-8")
+    out = registry.convert(src, "json")
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["root"]["a"]["#text"] == "你好"
+
+
 def test_md_to_html(tmp_path):
     src = tmp_path / "a.md"
     src.write_text("# 标题\n\n正文 **加粗**\n", encoding="utf-8")

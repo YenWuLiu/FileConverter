@@ -15,13 +15,15 @@ def pdf_to_txt(src: Path, dst: Path, **opts):
 def _pdf_to_images(src: Path, dst: Path, dpi: int = 150):
     import fitz
 
+    from ..registry import unique_path
+
     doc = fitz.open(str(src))
     try:
         zoom = dpi / 72
         matrix = fitz.Matrix(zoom, zoom)
         single = len(doc) == 1
         for i, page in enumerate(doc):
-            target = dst if single else dst.with_name(f"{dst.stem}_p{i + 1}{dst.suffix}")
+            target = dst if single else unique_path(dst.with_name(f"{dst.stem}_p{i + 1}{dst.suffix}"))
             page.get_pixmap(matrix=matrix).save(str(target))
     finally:
         doc.close()

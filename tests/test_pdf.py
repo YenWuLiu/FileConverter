@@ -52,6 +52,13 @@ def test_pdf_to_png(pdf3):
     assert first.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_pdf_to_png_no_overwrite(pdf3):
+    registry.convert(pdf3, "png")
+    registry.convert(pdf3, "png")
+    assert (pdf3.parent / "a_p1.png").exists()
+    assert (pdf3.parent / "a_p1 (1).png").exists()
+
+
 def test_merge(pdf3, tmp_path):
     b = tmp_path / "b.pdf"
     _make_pdf(b, ["乙一"])

@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -113,8 +114,11 @@ def _elem_to_dict(elem: ET.Element):
 
 @register("xml", ["json"])
 def xml_to_json(src: Path, dst: Path, **opts):
+    text = _read_text_auto(src)
+    # 文本已解码，剥离 XML 声明里的 encoding 属性，否则 fromstring 拒绝带编码声明的 str
+    text = re.sub(r"(<\?xml[^>]*?)\s*encoding\s*=\s*['\"][^'\"]*['\"]", r"\1", text, count=1)
     try:
-        root = ET.fromstring(_read_text_auto(src))
+        root = ET.fromstring(text)
     except ET.ParseError as e:
         raise ConvertError(f"XML 解析失败 {src.name}: {e}")
     dst.write_text(

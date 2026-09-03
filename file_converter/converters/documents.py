@@ -43,11 +43,13 @@ def docx_to_md(src: Path, dst: Path, **opts):
 def xlsx_to_csv(src: Path, dst: Path, **opts):
     import openpyxl
 
+    from ..registry import unique_path
+
     wb = openpyxl.load_workbook(str(src), data_only=True)
     names = wb.sheetnames
     for name in names:
         ws = wb[name]
-        target = dst if len(names) == 1 else dst.with_name(f"{dst.stem}_{name}{dst.suffix}")
+        target = dst if len(names) == 1 else unique_path(dst.with_name(f"{dst.stem}_{name}{dst.suffix}"))
         with open(target, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
             for row in ws.iter_rows(values_only=True):

@@ -1,7 +1,5 @@
 import csv
 
-import pytest
-
 from file_converter import registry
 
 
@@ -54,6 +52,20 @@ def test_xlsx_to_csv_multisheet(tmp_path):
     assert (tmp_path / "m_二.csv").exists()
 
 
+def test_xlsx_to_csv_multisheet_no_overwrite(tmp_path):
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    wb.active.title = "一"
+    wb.create_sheet("二")
+    p = tmp_path / "m.xlsx"
+    wb.save(str(p))
+    registry.convert(p, "csv")
+    registry.convert(p, "csv")
+    assert (tmp_path / "m_一.csv").exists()
+    assert (tmp_path / "m_一 (1).csv").exists()
+
+
 def test_csv_to_xlsx(tmp_path):
     src = tmp_path / "a.csv"
     src.write_text("x,y\n1,2\n", encoding="utf-8-sig")
@@ -68,7 +80,6 @@ def test_csv_to_xlsx(tmp_path):
 
 def test_pptx_to_txt(tmp_path):
     from pptx import Presentation
-    from pptx.util import Inches
 
     prs = Presentation()
     slide = prs.slides.add_slide(prs.slide_layouts[1])
