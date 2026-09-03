@@ -1,0 +1,11 @@
+Pillow
+python-docx
+openpyxl
+python-pptx
+pypdf
+PyMuPDF
+pywin32; sys_platform == "win32"
+markdown
+beautifulsoup4
+PyYAML
+pytest
