@@ -1,6 +1,6 @@
 # 万能文件转换工具 (File Converter)
 
-一个 Windows 上的本地文件转换工具，提供 **图形界面（Tkinter）** 和 **命令行（CLI）** 两种用法，覆盖 Office 文档、图片、PDF、文本与数据格式之间的常见互转，以及 PDF 合并 / 拆分 / 旋转。
+一个 Windows 上的本地文件转换工具，提供 **图形界面（Tkinter）** 和 **命令行（CLI）** 两种用法，覆盖 Office 文档、图片、PDF、视频、音频、文本与数据格式之间的常见互转，以及 PDF 合并 / 拆分 / 旋转。
 
 - 纯本地转换，不上传任何文件
 - 批量转换：一次传入多个文件，逐个处理，失败不影响其他文件
@@ -11,6 +11,8 @@
 
 - Python 3.14（Windows）
 - Office→PDF 转换需要本机安装 **MS Office**（Word/Excel/PowerPoint，走 COM 接口）或 **LibreOffice**
+- 视频/音频转换使用依赖自带的 ffmpeg（`imageio-ffmpeg`），**无需单独安装 ffmpeg**
+- PDF→Word 使用 `pdf2docx`；未安装时若本机有 MS Word 会自动回退
 
 ## 安装
 
@@ -70,7 +72,12 @@ python -m file_converter rotate in.pdf --angle 90 -o rotated.pdf
 | png, jpg, jpeg, webp, bmp, gif, tiff, ico | 同上互转 | 图片格式互转（Pillow） |
 | png, jpg, jpeg, webp, bmp, gif, tiff, ico | pdf | 图片转 PDF |
 | pdf | txt | PDF 提取纯文本 |
+| pdf | docx | PDF 转 Word（pdf2docx 为主，失败时回退 Word COM） |
 | pdf | png, jpg, jpeg | PDF 逐页转图片（多页时输出 `文件名_p1.png`、`文件名_p2.png`……） |
+| mp4, mkv, avi, mov, webm, flv | 同上互转 | 视频格式互转（内置 ffmpeg，无需单独安装） |
+| mp4, mkv, avi, mov, webm, flv | gif | 视频转 GIF（10fps、宽 480px） |
+| mp4, mkv, avi, mov, webm, flv | mp3, wav, aac, m4a, ogg, flac | 视频提取音频 |
+| mp3, wav, aac, m4a, ogg, flac | 同上互转 | 音频格式互转 |
 | csv | json, yaml, yml | 表格数据转 JSON / YAML（首行为表头） |
 | json | csv, yaml, yml | JSON 转 CSV（要求对象数组）/ YAML |
 | yaml, yml | json, csv | YAML 转 JSON / CSV |
