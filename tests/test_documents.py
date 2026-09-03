@@ -1,0 +1,82 @@
+import csv
+
+import pytest
+
+from file_converter import registry
+
+
+def test_docx_to_txt_and_md(tmp_path):
+    import docx
+
+    d = docx.Document()
+    d.add_heading("报告标题", level=1)
+    d.add_paragraph("第一段内容")
+    p = tmp_path / "a.docx"
+    d.save(str(p))
+
+    txt = registry.convert(p, "txt")
+    assert "第一段内容" in txt.read_text(encoding="utf-8")
+
+    md = registry.convert(p, "md")
+    md_text = md.read_text(encoding="utf-8")
+    assert md_text.startswith("# 报告标题")
+
+
+def test_xlsx_to_csv(tmp_path):
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "数据"
+    ws.append(["姓名", "分数"])
+    ws.append(["张三", 90])
+    p = tmp_path / "a.xlsx"
+    wb.save(str(p))
+
+    out = registry.convert(p, "csv")
+    rows = list(csv.reader(out.read_text(encoding="utf-8-sig").splitlines()))
+    assert rows == [["姓名", "分数"], ["张三", "90"]]
+
+
+def test_xlsx_to_csv_multisheet(tmp_path):
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    wb.active.title = "一"
+    wb.create_sheet("二")
+    wb["一"].append(["a"])
+    wb["二"].append(["b"])
+    p = tmp_path / "m.xlsx"
+    wb.save(str(p))
+
+    registry.convert(p, "csv")
+    assert (tmp_path / "m_一.csv").exists()
+    assert (tmp_path / "m_二.csv").exists()
+
+
+def test_csv_to_xlsx(tmp_path):
+    src = tmp_path / "a.csv"
+    src.write_text("x,y\n1,2\n", encoding="utf-8-sig")
+    out = registry.convert(src, "xlsx")
+
+    import openpyxl
+
+    wb = openpyxl.load_workbook(str(out))
+    ws = wb.active
+    assert ws["A1"].value == "x" and ws["B2"].value == "2"
+
+
+def test_pptx_to_txt(tmp_path):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    slide.shapes.title.text = "演示标题"
+    slide.placeholders[1].text = "要点一"
+    p = tmp_path / "a.pptx"
+    prs.save(str(p))
+
+    out = registry.convert(p, "txt")
+    text = out.read_text(encoding="utf-8")
+    assert "演示标题" in text and "要点一" in text
