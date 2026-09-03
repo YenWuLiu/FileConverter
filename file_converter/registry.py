@@ -17,7 +17,7 @@ def available_targets(src_ext: str) -> list[str]:
     for spec in REGISTRY:
         if src_ext in spec.src and _spec_ok(spec):
             for d in spec.dst:
-                if d != src_ext or spec.label:
+                if d != src_ext or spec.self_conversion:
                     out.add(d)
     return sorted(out)
 

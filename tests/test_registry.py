@@ -54,3 +54,17 @@ def test_missing_dependency_filtered():
     src = Path("whatever.dep")
     with pytest.raises(ConvertError, match="缺少依赖"):
         registry.convert(src, "x")
+
+
+def test_self_conversion_filtered_by_default():
+    @register("pic", ["pic", "jpg"], label="带label也不应自转")
+    def _p(src, dst, **opts):
+        pass
+
+    @register("enc", ["enc"], self_conversion=True, label="编码转换")
+    def _e(src, dst, **opts):
+        pass
+
+    assert "pic" not in registry.available_targets("pic")
+    assert "jpg" in registry.available_targets("pic")
+    assert "enc" in registry.available_targets("enc")

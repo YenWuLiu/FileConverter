@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable
 
 
@@ -19,6 +18,7 @@ class ConverterSpec:
     func: ConvertFunc
     requires: tuple[str, ...] = ()
     label: str = ""
+    self_conversion: bool = False
 
 
 REGISTRY: list[ConverterSpec] = []
@@ -30,12 +30,14 @@ def _norm(values) -> tuple[str, ...]:
     return tuple(v.lower().lstrip(".") for v in values)
 
 
-def register(src, dst, requires=(), label=""):
+def register(src, dst, requires=(), label="", self_conversion=False):
     """注册一个转换器：src/dst 为扩展名（可单个或列表），requires 为必需的 import 模块名。"""
 
     def deco(fn: ConvertFunc) -> ConvertFunc:
         REGISTRY.append(
-            ConverterSpec(_norm(src), _norm(dst), fn, tuple(requires), label or fn.__name__)
+            ConverterSpec(
+                _norm(src), _norm(dst), fn, tuple(requires), label or fn.__name__, self_conversion
+            )
         )
         return fn
 
