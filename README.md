@@ -86,7 +86,7 @@ PDF 工具（`merge` / `split` / `rotate`）见上方 CLI 用法。
 `docx` / `xlsx` / `pptx` → `pdf` 按以下顺序选择引擎：
 
 1. **MS Office（COM）**：本机装有 Microsoft Office 时优先使用，通过 Word / Excel / PowerPoint 的 COM 接口导出，保真度最高（首次调用需启动 Office，可能耗时数秒）。
-2. **LibreOffice（回退）**：未检测到 MS Office 时，自动查找 `soffice`（PATH 或 `Program Files\LibreOffice`）以无头模式转换。
+2. **LibreOffice（回退）**：未检测到 MS Office，或 Office COM 转换失败时，自动查找 `soffice`（PATH 或 `Program Files\LibreOffice`）以无头模式转换。
 
 两者都不可用时该转换会报 `[失败]`，并提示安装 MS Office 或 LibreOffice。`python -m file_converter list` 会显示当前实际使用的引擎。
 
@@ -106,3 +106,6 @@ A：不会。所有输出路径都经过防覆盖处理，已存在时自动追�
 
 **Q：某条转换标记为 `[*]` 不可用？**
 A：表示对应第三方库未安装（如 PyYAML、PyMuPDF）。重新执行 `pip install -r requirements.txt` 即可；Office→PDF 额外需要 MS Office 或 LibreOffice。
+
+**Q：拆分 PDF 的页码语法是什么？**
+A：`--pages 1-3,5` 会按段输出 2 个文件（如 `xxx_p1-3.pdf`、`xxx_p5.pdf`）。逗号分隔的各段相互独立，各自产出一个 PDF，不做跨段合并/去重。

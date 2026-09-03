@@ -88,27 +88,36 @@ def merge_pdfs(srcs: list[Path], dst: Path) -> None:
 
 
 def split_pdf(src: Path, dst_dir: Path, pages: str) -> list[Path]:
+    """按页码段拆分 PDF，返回生成的文件列表。pages 形如 '1-3,5'。
+
+    逗号分隔的各段各自产出一个 PDF（不去重、不跨段合并）。
+    """
     from pypdf import PdfReader, PdfWriter
 
     from ..registry import unique_path
 
-    reader = PdfReader(str(src))
-    segments: list[list[int]] = []
-    for part in pages.split(","):
-        segments.extend(parse_page_spec(part, len(reader.pages)))
-    dst_dir.mkdir(parents=True, exist_ok=True)
-    outs: list[Path] = []
-    for seg in segments:
-        writer = PdfWriter()
-        for p in seg:
-            writer.add_page(reader.pages[p - 1])
-        name = f"{src.stem}_p{seg[0]}-{seg[-1]}.pdf" if len(seg) > 1 else f"{src.stem}_p{seg[0]}.pdf"
-        out = unique_path(dst_dir / name)
-        with open(out, "wb") as f:
-            writer.write(f)
-        writer.close()
-        outs.append(out)
-    return outs
+    try:
+        reader = PdfReader(str(src))
+        segments: list[list[int]] = []
+        for part in pages.split(","):
+            segments.extend(parse_page_spec(part, len(reader.pages)))
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        outs: list[Path] = []
+        for seg in segments:
+            writer = PdfWriter()
+            for p in seg:
+                writer.add_page(reader.pages[p - 1])
+            name = f"{src.stem}_p{seg[0]}-{seg[-1]}.pdf" if len(seg) > 1 else f"{src.stem}_p{seg[0]}.pdf"
+            out = unique_path(dst_dir / name)
+            with open(out, "wb") as f:
+                writer.write(f)
+            writer.close()
+            outs.append(out)
+        return outs
+    except ConvertError:
+        raise
+    except Exception as e:
+        raise ConvertError(f"拆分 PDF 失败 {src.name}: {e}") from e
 
 
 def rotate_pdf(src: Path, dst: Path, angle: int = 90) -> None:
@@ -116,11 +125,16 @@ def rotate_pdf(src: Path, dst: Path, angle: int = 90) -> None:
 
     if angle not in (90, 180, 270):
         raise ConvertError(f"旋转角度必须是 90/180/270，收到 {angle}")
-    reader = PdfReader(str(src))
-    writer = PdfWriter()
-    for page in reader.pages:
-        writer.add_page(page.rotate(angle))
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    with open(dst, "wb") as f:
-        writer.write(f)
-    writer.close()
+    try:
+        reader = PdfReader(str(src))
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page.rotate(angle))
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        with open(dst, "wb") as f:
+            writer.write(f)
+        writer.close()
+    except ConvertError:
+        raise
+    except Exception as e:
+        raise ConvertError(f"旋转 PDF 失败 {src.name}: {e}") from e

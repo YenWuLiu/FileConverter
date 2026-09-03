@@ -1,4 +1,6 @@
 import csv
+import subprocess
+from pathlib import Path
 
 from file_converter import registry
 
@@ -91,3 +93,36 @@ def test_pptx_to_txt(tmp_path):
     out = registry.convert(p, "txt")
     text = out.read_text(encoding="utf-8")
     assert "演示标题" in text and "要点一" in text
+
+
+def test_libreoffice_to_pdf_does_not_overwrite_existing(tmp_path, monkeypatch):
+    import docx
+
+    from file_converter import deps
+    from file_converter.converters import documents
+
+    d = docx.Document()
+    d.add_paragraph("内容")
+    src = tmp_path / "a.docx"
+    d.save(str(src))
+
+    sentinel = tmp_path / "a.pdf"
+    sentinel.write_bytes(b"SENTINEL-ORIGINAL")
+
+    monkeypatch.setattr(deps, "office_available", lambda: False)
+    monkeypatch.setattr(deps, "libreoffice_path", lambda: "soffice")
+
+    def fake_run(cmd, **kwargs):
+        outdir = Path(cmd[cmd.index("--outdir") + 1])
+        assert outdir != tmp_path
+        (outdir / "a.pdf").write_bytes(b"FAKE-PDF")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(documents.subprocess, "run", fake_run)
+
+    dst = registry.unique_path(tmp_path / "a.pdf")
+    assert dst != sentinel
+    out = registry.convert(src, "pdf", dst)
+    assert out == dst
+    assert sentinel.read_bytes() == b"SENTINEL-ORIGINAL"
+    assert out.read_bytes() == b"FAKE-PDF"

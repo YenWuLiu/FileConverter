@@ -77,3 +77,17 @@ def test_rotate(pdf3, tmp_path):
     out = tmp_path / "r.pdf"
     rotate_pdf(pdf3, out, 90)
     assert PdfReader(str(out)).pages[0].rotation == 90
+
+
+def test_split_corrupt_raises_convert_error(tmp_path):
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"not a pdf at all")
+    with pytest.raises(ConvertError):
+        split_pdf(bad, tmp_path / "out", "1")
+
+
+def test_rotate_corrupt_raises_convert_error(tmp_path):
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b"not a pdf at all")
+    with pytest.raises(ConvertError):
+        rotate_pdf(bad, tmp_path / "r.pdf", 90)

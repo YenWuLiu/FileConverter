@@ -1,5 +1,7 @@
 import csv
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from .. import deps
@@ -131,23 +133,29 @@ def _libreoffice_to_pdf(src: Path, dst: Path) -> None:
     exe = deps.libreoffice_path()
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
-        r = subprocess.run(
-            [exe, "--headless", "--convert-to", "pdf", "--outdir", str(dst.parent), str(src)],
-            capture_output=True, text=True, timeout=300,
-        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            r = subprocess.run(
+                [exe, "--headless", "--convert-to", "pdf", "--outdir", tmpdir, str(src)],
+                capture_output=True, text=True, timeout=300,
+            )
+            produced = Path(tmpdir) / (src.stem + ".pdf")
+            if r.returncode != 0 or not produced.exists():
+                raise ConvertError(f"LibreOffice 转换失败 {src.name}: {(r.stderr or r.stdout).strip()}")
+            shutil.move(str(produced), str(dst))
     except subprocess.TimeoutExpired:
         raise ConvertError(f"LibreOffice 转换超时 {src.name}")
-    produced = dst.parent / (src.stem + ".pdf")
-    if r.returncode != 0 or not produced.exists():
-        raise ConvertError(f"LibreOffice 转换失败 {src.name}: {(r.stderr or r.stdout).strip()}")
-    if produced != dst:
-        produced.replace(dst)
 
 
 @register(["docx", "xlsx", "pptx"], ["pdf"], label="Office→PDF")
 def office_to_pdf(src: Path, dst: Path, **opts):
     if deps.office_available():
-        _com_to_pdf(src, dst)
+        try:
+            _com_to_pdf(src, dst)
+        except ConvertError:
+            if deps.libreoffice_path():
+                _libreoffice_to_pdf(src, dst)
+            else:
+                raise
     elif deps.libreoffice_path():
         _libreoffice_to_pdf(src, dst)
     else:

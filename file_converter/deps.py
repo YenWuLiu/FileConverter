@@ -14,9 +14,16 @@ def module_available(name: str) -> bool:
     return _cache[name]
 
 
+_OFFICE_AVAILABLE: bool | None = None
+
+
 def office_available() -> bool:
-    """探测本机 MS Office COM 是否可用（以 Word 为探针）。"""
+    """探测本机 MS Office COM 是否可用（以 Word 为探针，每进程最多探测一次）。"""
+    global _OFFICE_AVAILABLE
+    if _OFFICE_AVAILABLE is not None:
+        return _OFFICE_AVAILABLE
     if not module_available("win32com.client"):
+        _OFFICE_AVAILABLE = False
         return False
     try:
         import pythoncom
@@ -26,11 +33,12 @@ def office_available() -> bool:
         try:
             app = win32com.client.DispatchEx("Word.Application")
             app.Quit()
-            return True
+            _OFFICE_AVAILABLE = True
         finally:
             pythoncom.CoUninitialize()
     except Exception:
-        return False
+        _OFFICE_AVAILABLE = False
+    return _OFFICE_AVAILABLE
 
 
 def libreoffice_path() -> str | None:
