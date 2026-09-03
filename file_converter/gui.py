@@ -1,9 +1,10 @@
 import queue
+import sys
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
 from pathlib import Path
-from tkinter import filedialog, simpledialog, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from . import registry
 from .converters.base import ConvertError
@@ -36,7 +37,13 @@ MENU_HOVER = "#f2f1ed"
 FONT = "Microsoft YaHei"
 MONO = "Consolas"
 
-ICON_PATH = Path(__file__).with_name("assets") / "icon.png"
+def _icon_path() -> Path:
+    # 冻结 onedir 下资源在 _MEIPASS/file_converter/assets/，开发环境在项目包目录
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / "file_converter" / "assets" / "icon.png"
+
+
+ICON_PATH = _icon_path()
 
 STATE_TEXT = {"idle": "等待", "doing": "转换中", "done": "完成", "fail": "失败"}
 
@@ -79,6 +86,9 @@ class ConverterApp:
         self.running = False
         self._drag_over = False
         self._adv_open = False
+        self._failures: list[tuple[str, str]] = []
+        self._last_outdir = ""
+        self._last_rows_width = -1
         self._links: list[tuple[tk.Label, tkfont.Font, object]] = []
 
         f = self._f = {
@@ -149,6 +159,15 @@ class ConverterApp:
         self._make_link(bar, "添加文件夹", self.add_folder)
         self._make_link(bar, "清空", self.clear_files)
         self.tools_link = self._make_link(bar, "PDF 工具", self._toggle_pdf_menu)
+        self._pdf_menu = tk.Menu(bar, tearoff=0, bg=PANEL, fg=TEXT,
+                                 activebackground=MENU_HOVER, activeforeground=TEXT,
+                                 disabledforeground=FAINT, bd=1, relief=tk.SOLID,
+                                 font=self._f["link"])
+        self._pdf_menu.add_command(label="合并 PDF", command=self.merge_pdf)
+        self._pdf_menu.add_command(label="拆分 PDF", command=self.split_pdf)
+        self._pdf_menu.add_command(label="旋转 PDF", command=self.rotate_pdf)
+        self._pdf_menu.add_separator()
+        self._pdf_menu.add_command(label="作用于列表中的 PDF", state=tk.DISABLED)
         self.count_lbl = tk.Label(bar, text="0 项", font=self._f["count"],
                                   bg=BG, fg=FAINT)
         self.count_lbl.pack(side=tk.RIGHT)
@@ -180,6 +199,8 @@ class ConverterApp:
         t2.pack()
         for w in (self.empty, icon, t1, t2):
             w.bind("<Button-1>", lambda _e: self._empty_click())
+        self._tint_widgets = [self.drop_canvas, self.drop_content, self.empty,
+                              icon, t1, t2]
 
         # 文件行列表
         self.rows_canvas = tk.Canvas(self.drop_content, bg=PANEL,
@@ -193,6 +214,7 @@ class ConverterApp:
         self.rows_inner.bind("<Configure>", self._on_rows_configure)
         self.rows_canvas.bind("<Configure>", self._on_rows_canvas_configure)
         self.rows_canvas.bind("<MouseWheel>", self._on_wheel)
+        self._tint_widgets += [self.rows_canvas, self.rows_inner]
 
         if HAS_DND:
             self._register_dnd()
@@ -267,19 +289,20 @@ class ConverterApp:
         self.encoding.pack()
         tk.Frame(enc_f, bg=LINE, height=1).pack(fill=tk.X)
 
-        # 运行行（固定宽度控件先 pack，弹性进度条最后）
+        # 运行行（固定宽度控件先 pack，弹性控件最后）
         run = tk.Frame(foot, bg=BG)
         run.pack(fill=tk.X, pady=(12, 0))
         self.cta = tk.Canvas(run, width=104, height=30, bg=BG,
                              highlightthickness=0, cursor="hand2")
         self.cta.pack(side=tk.RIGHT)
-        self.status_lbl = tk.Label(run, text="就绪", font=self._f["meta"],
-                                   bg=BG, fg=FAINT, anchor=tk.W, width=24)
-        self.status_lbl.pack(side=tk.RIGHT, padx=(0, 12), pady=(6, 0))
-        self.track = tk.Canvas(run, height=2, bg=LINE_SOFT,
+        self.track = tk.Canvas(run, height=2, width=120, bg=LINE_SOFT,
                                highlightthickness=0, bd=0)
         self.track.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=(14, 0))
         self._fill = self.track.create_rectangle(0, 0, 0, 2, fill=ACCENT, width=0)
+        self.status_lbl = tk.Label(run, text="就绪", font=self._f["meta"],
+                                   bg=BG, fg=FAINT, anchor=tk.W)
+        self.status_lbl.pack(side=tk.LEFT, padx=(12, 12), pady=(6, 0))
+        self.status_lbl.bind("<Button-1>", lambda _e: self._show_failures())
         self._cta_hover = False
         self.cta.bind("<Enter>", lambda _e: self._cta_set_hover(True))
         self.cta.bind("<Leave>", lambda _e: self._cta_set_hover(False))
@@ -309,6 +332,12 @@ class ConverterApp:
             return
         if on != self._drag_over:
             self._drag_over = on
+            bg = DRAG_BG if on else PANEL
+            for w in self._tint_widgets:
+                try:
+                    w.configure(bg=bg)
+                except tk.TclError:
+                    pass
             self._draw_dropzone()
 
     def _cta_set_hover(self, on):
@@ -341,10 +370,21 @@ class ConverterApp:
 
     def _set_status(self, text):
         self.status_lbl.configure(text=text)
+        self.status_lbl.configure(
+            cursor="hand2" if self._failures else "arrow")
+
+    def _show_failures(self):
+        if not self._failures:
+            return
+        lines = [f"{name} — {err}" for name, err in self._failures]
+        messagebox.showinfo(
+            "失败详情", "\n".join(lines) + f"\n\n输出至 {self._last_outdir}")
 
     def _set_running(self, on):
         self.running = on
         for lbl, _font, _cmd in self._links:
+            if lbl is self.more_link:  # 设计稿中「选项」运行时不禁用
+                continue
             lbl.configure(fg=FAINT if on else TEXT, cursor="arrow" if on else "hand2")
         self._draw_cta()
 
@@ -358,21 +398,12 @@ class ConverterApp:
             self.adv.pack_forget()
 
     def _toggle_pdf_menu(self):
-        menu = tk.Menu(self.root, tearoff=0, bg=PANEL, fg=TEXT,
-                       activebackground=MENU_HOVER, activeforeground=TEXT,
-                       disabledforeground=FAINT, bd=1, relief=tk.SOLID,
-                       font=self._f["link"])
-        menu.add_command(label="合并 PDF", command=self.merge_pdf)
-        menu.add_command(label="拆分 PDF", command=self.split_pdf)
-        menu.add_command(label="旋转 PDF", command=self.rotate_pdf)
-        menu.add_separator()
-        menu.add_command(label="作用于列表中的 PDF", state=tk.DISABLED)
         x = self.tools_link.winfo_rootx()
         y = self.tools_link.winfo_rooty() + self.tools_link.winfo_height() + 2
         try:
-            menu.tk_popup(x, y)
+            self._pdf_menu.tk_popup(x, y)
         finally:
-            menu.grab_release()
+            self._pdf_menu.grab_release()
 
     # ---- 文件行 ----
     def _on_rows_configure(self, _e=None):
@@ -384,7 +415,9 @@ class ConverterApp:
 
     def _on_rows_canvas_configure(self, e):
         self.rows_canvas.itemconfigure(self._rows_window, width=e.width)
-        self._render_rows()
+        if e.width != self._last_rows_width:  # 仅宽度变化才重排行
+            self._last_rows_width = e.width
+            self._render_rows()
 
     def _on_wheel(self, e):
         self.rows_canvas.yview_scroll(int(-e.delta / 120), "units")
@@ -404,7 +437,7 @@ class ConverterApp:
                 w.configure(bg=bg)
             except tk.TclError:
                 pass
-        widgets["rm"].configure(fg=FAINT if on else (ROW_HOVER if on else PANEL))
+        widgets["rm"].configure(fg=FAINT if on else PANEL)
 
     def _render_rows(self):
         for child in self.rows_inner.winfo_children():
@@ -515,34 +548,50 @@ class ConverterApp:
 
     # ---- 文件列表 ----
     def add_files(self):
-        for p in filedialog.askopenfilenames(title="选择要转换的文件"):
-            self._add(Path(p))
+        self._add_many([Path(p) for p in
+                        filedialog.askopenfilenames(title="选择要转换的文件")])
 
     def add_folder(self):
         folder = filedialog.askdirectory(title="选择文件夹")
         if folder:
-            for p in sorted(Path(folder).rglob("*")):
-                if p.is_file():
-                    self._add(p)
+            self._add_many([p for p in sorted(Path(folder).rglob("*"))
+                            if p.is_file()])
 
     def _add(self, p: Path):
-        p = Path(p)
-        if any(f["path"] == p for f in self.files):
+        self._add_many([p])
+
+    def _add_many(self, paths):
+        added = 0
+        for p in paths:
+            p = Path(p)
+            if any(f["path"] == p for f in self.files):
+                continue
+            self.files.append({"path": p, "state": "idle", "err": None})
+            added += 1
+        if not added:
             return
-        self.files.append({"path": p, "state": "idle", "err": None})
-        self.refresh_targets()
-        self._render_rows()
-        self._set_status(f"添加 {len(self.files)} 项 · 目标 {self.target.get().upper() or '—'}")
+        values = self.refresh_targets()
+        self._render_rows()  # 整批只渲染一次
+        if self.files and not values:
+            self._set_status("无共同目标格式")
+        else:
+            self._set_status(
+                f"添加 {added} 个文件 · 目标 {self.target.get().upper() or '—'}")
 
     def _remove_at(self, idx):
         if self.running or idx >= len(self.files):
             return
         name = self.files.pop(idx)["path"].name
-        self.refresh_targets()
+        values = self.refresh_targets()
         self._render_rows()
-        self._set_status(f"已移除 {name}")
+        if self.files and not values:
+            self._set_status("无共同目标格式")
+        else:
+            self._set_status(f"已移除 {name}")
 
     def clear_files(self):
+        if self.running:
+            return
         self.files.clear()
         self.track.coords(self._fill, 0, 0, 0, 2)
         self.refresh_targets()
@@ -561,14 +610,14 @@ class ConverterApp:
             paths = self.root.tk.splitlist(event.data)
         except tk.TclError:
             paths = (event.data,)
+        collected = []
         for raw in paths:
             p = Path(raw)
             if p.is_dir():
-                for q in sorted(p.rglob("*")):
-                    if q.is_file():
-                        self._add(q)
+                collected.extend(q for q in sorted(p.rglob("*")) if q.is_file())
             elif p.is_file():
-                self._add(p)
+                collected.append(p)
+        self._add_many(collected)
 
     def refresh_targets(self):
         exts = {f["path"].suffix.lower().lstrip(".") for f in self.files}
@@ -582,6 +631,7 @@ class ConverterApp:
             self.target.set("")
         elif self.target.get() not in values:
             self.target.set(values[0])
+        return values
 
     def pick_outdir(self):
         d = filedialog.askdirectory(title="选择输出目录")
@@ -618,6 +668,7 @@ class ConverterApp:
         if not items:
             self._set_status("全部已转换过")
             return
+        self._failures.clear()
         self._set_running(True)
         self.track.coords(self._fill, 0, 0, 0, 2)
         threading.Thread(
@@ -630,20 +681,25 @@ class ConverterApp:
     def _worker(self, items, target, outdir, dpi, dst_encoding):
         ok, fail = 0, 0
         total = len(items)
-        for n, (idx, src) in enumerate(items):
-            self.queue.put(("doing", (idx, n, total, src.name)))
-            try:
-                dst = None
-                if outdir:
-                    dst = registry.unique_path(Path(outdir) / (src.stem + "." + target))
-                registry.convert(src, target, dst, dpi=dpi, dst_encoding=dst_encoding)
-                self.queue.put(("row", (idx, "done", src.name, None)))
-                ok += 1
-            except ConvertError as e:
-                self.queue.put(("row", (idx, "fail", src.name, str(e))))
-                fail += 1
-            self.queue.put(("step", (ok + fail, total)))
-        self.queue.put(("done", (ok, fail, outdir)))
+        try:
+            for n, (idx, src) in enumerate(items):
+                self.queue.put(("doing", (idx, n, total, src.name)))
+                try:
+                    dst = None
+                    if outdir:
+                        dst = registry.unique_path(Path(outdir) / (src.stem + "." + target))
+                    registry.convert(src, target, dst, dpi=dpi, dst_encoding=dst_encoding)
+                    self.queue.put(("row", (idx, "done", src.name, None)))
+                    ok += 1
+                except ConvertError as e:
+                    self.queue.put(("row", (idx, "fail", src.name, str(e))))
+                    fail += 1
+                except Exception as e:  # 非预期异常也记为失败，不中断批次
+                    self.queue.put(("row", (idx, "fail", src.name, str(e))))
+                    fail += 1
+                self.queue.put(("step", (ok + fail, total)))
+        finally:  # 保底：任何情况下都发 done，UI 不会卡在「转换中…」
+            self.queue.put(("done", (ok, fail, outdir)))
 
     def _poll(self):
         if not self._drain():
@@ -662,6 +718,9 @@ class ConverterApp:
                     idx, state, name, err = payload
                     self._set_row_state(idx, state)
                     if state == "fail":
+                        if idx < len(self.files):
+                            self.files[idx]["err"] = err
+                        self._failures.append((name, err))
                         self._set_status(f"失败：{name} — {err}")
                 elif kind == "step":
                     done, total = payload
@@ -672,8 +731,8 @@ class ConverterApp:
                     self._set_running(False)
                     w = max(self.track.winfo_width(), 1)
                     self.track.coords(self._fill, 0, 0, w, 2)
-                    dest = outdir or "源文件目录"
-                    self._set_status(f"完成 {ok}/{ok + fail} · 输出至 {dest}")
+                    self._last_outdir = outdir or "源文件目录"
+                    self._set_status(f"完成 {ok}/{ok + fail} · 输出至 {self._last_outdir}")
                     return True
         except queue.Empty:
             pass
@@ -743,9 +802,13 @@ class ConverterApp:
 
 
 def run():
+    root = None
     if HAS_DND:
-        root = tkinterdnd2.TkinterDnD.Tk()
-    else:
+        try:
+            root = tkinterdnd2.TkinterDnD.Tk()
+        except tk.TclError:  # 冻结环境/安装损坏导致 tkdnd 缺失时退化为普通窗口
+            root = None
+    if root is None:
         root = tk.Tk()
     ConverterApp(root)
     root.mainloop()
