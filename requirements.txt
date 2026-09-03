@@ -11,3 +11,4 @@ PyYAML
 pdf2docx
 imageio-ffmpeg
 pytest
+tkinterdnd2
