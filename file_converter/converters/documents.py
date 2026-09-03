@@ -160,3 +160,48 @@ def office_to_pdf(src: Path, dst: Path, **opts):
         _libreoffice_to_pdf(src, dst)
     else:
         raise ConvertError("转换为 PDF 需要安装 MS Office 或 LibreOffice")
+
+
+def _pdf_to_docx_com(src: Path, dst: Path) -> None:
+    import pythoncom
+    import win32com.client
+
+    pythoncom.CoInitialize()
+    app = None
+    try:
+        app = win32com.client.DispatchEx("Word.Application")
+        app.Visible = False
+        app.DisplayAlerts = 0  # wdAlertsNone
+        doc = app.Documents.Open(str(src.resolve()), ReadOnly=True)
+        doc.SaveAs2(str(dst.resolve()), FileFormat=16)  # wdFormatDocumentDefault (.docx)
+        doc.Close(False)
+    except Exception as e:
+        raise ConvertError(f"Word 转换 PDF 失败 {src.name}: {e}")
+    finally:
+        if app is not None:
+            try:
+                app.Quit()
+            except Exception:
+                pass
+        pythoncom.CoUninitialize()
+
+
+@register("pdf", ["docx"], label="PDF→Word")
+def pdf_to_docx(src: Path, dst: Path, **opts):
+    if deps.module_available("pdf2docx"):
+        try:
+            from pdf2docx import Converter
+
+            cv = Converter(str(src))
+            try:
+                cv.convert(str(dst))
+            finally:
+                cv.close()
+            return
+        except Exception:
+            if dst.exists():  # 清掉半成品，避免 Word 覆盖提示
+                dst.unlink()
+    if deps.office_available():
+        _pdf_to_docx_com(src, dst)
+        return
+    raise ConvertError("PDF 转 Word 需要 pdf2docx 库或 MS Office")

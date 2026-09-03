@@ -8,5 +8,6 @@ pywin32; sys_platform == "win32"
 markdown
 beautifulsoup4
 PyYAML
+pdf2docx
 imageio-ffmpeg
 pytest

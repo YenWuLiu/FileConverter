@@ -95,6 +95,24 @@ def test_pptx_to_txt(tmp_path):
     assert "演示标题" in text and "要点一" in text
 
 
+def test_pdf_to_docx(tmp_path):
+    import docx
+    import fitz
+
+    p = tmp_path / "a.pdf"
+    pdf = fitz.open()
+    page = pdf.new_page()
+    page.insert_font(fontname="cjk", fontfile="C:/Windows/Fonts/simsun.ttc")
+    page.insert_text((72, 72), "PDF转Word测试文档", fontname="cjk")
+    pdf.save(str(p))
+    pdf.close()
+
+    out = registry.convert(p, "docx")
+    d = docx.Document(str(out))
+    text = "\n".join(par.text for par in d.paragraphs)
+    assert "PDF转Word测试文档" in text
+
+
 def test_libreoffice_to_pdf_does_not_overwrite_existing(tmp_path, monkeypatch):
     import docx
 
