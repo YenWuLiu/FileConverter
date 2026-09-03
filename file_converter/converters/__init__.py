@@ -1,1 +1,1 @@
-from . import base  # noqa: F401
+from . import base, textdata  # noqa: F401  导入即注册
