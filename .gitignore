@@ -1,3 +1,15 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+build/
+dist/
+build_log.txt
+
+# 本地验证/冒烟测试产物
+.verify/
+
+# 一次性辅助脚本（生成测试夹具等）
+packaging/_*
+
+# GUI 设计稿原型（HTML 预览）
+index.html

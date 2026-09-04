@@ -89,7 +89,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     if getattr(args, "gui", False) or args.cmd is None:
-        if args.cmd is None and not getattr(args, "gui", False):
+        # 打包成 exe（frozen）后无参数直接进入 GUI；源码运行无参数仍打印帮助
+        if not getattr(args, "gui", False) and not getattr(sys, "frozen", False):
             parser.print_help()
             return 0
         from .gui import run

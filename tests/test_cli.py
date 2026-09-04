@@ -1,6 +1,22 @@
 import json
+import sys
 
 from file_converter.__main__ import main
+
+
+def test_no_args_prints_help(capsys):
+    assert main([]) == 0
+    assert "convert" in capsys.readouterr().out
+
+
+def test_frozen_no_args_launches_gui(monkeypatch):
+    import file_converter.gui as gui
+
+    called = []
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(gui, "run", lambda: called.append(True))
+    assert main([]) == 0
+    assert called
 
 
 def test_list_runs(capsys):

@@ -1,5 +1,9 @@
 # 万能文件转换工具 (File Converter)
 
+<p align="center">
+  <img src="logo_small.png" alt="File Converter" width="128">
+</p>
+
 一个 Windows 上的本地文件转换工具，提供 **图形界面（Tkinter）** 和 **命令行（CLI）** 两种用法，覆盖 Office 文档、图片、PDF、视频、音频、文本与数据格式之间的常见互转，以及 PDF 合并 / 拆分 / 旋转。
 
 - 纯本地转换，不上传任何文件
@@ -97,6 +101,25 @@ PDF 工具（`merge` / `split` / `rotate`）见上方 CLI 用法。
 
 两者都不可用时该转换会报 `[失败]`，并提示安装 MS Office 或 LibreOffice。`python -m file_converter list` 会显示当前实际使用的引擎。
 
+## 打包 / 分发
+
+项目可用 PyInstaller 打包成免安装的绿色软件（onedir 单文件夹双 exe）：
+
+- **`FileConverter.exe`**：图形界面（无控制台窗口），双击即用；无参数直接启动 GUI
+- **`FileConverterCLI.exe`**：命令行版本，用法与 `python -m file_converter` 相同（如 `FileConverterCLI.exe list`）
+
+**最终用户**：解压 `FileConverter-windows-x64.zip` 后运行其中的 `FileConverter.exe` 即可。注意 `FileConverter.exe`、`FileConverterCLI.exe` 与 `_internal/` 依赖目录（含内置 ffmpeg、Python 运行时等）**必须保持在同一文件夹内整体分发**，不能只拷贝单个 exe。
+
+**开发者重新打包**（在项目根目录执行）：
+
+```bash
+pip install -r requirements.txt pyinstaller
+pyinstaller packaging/FileConverter.spec --noconfirm --clean
+# 若 pyinstaller 不在 PATH：python -m PyInstaller packaging/FileConverter.spec --noconfirm --clean
+```
+
+产物位于 `dist/FileConverter/`。打包与入口说明见 `packaging/FileConverter.spec` 头部注释。
+
 ## 常见问题
 
 **Q：命令行输出的中文在终端里显示为乱码？**
@@ -116,3 +139,7 @@ A：表示对应第三方库未安装（如 PyYAML、PyMuPDF）。重新执行 `
 
 **Q：拆分 PDF 的页码语法是什么？**
 A：`--pages 1-3,5` 会按段输出 2 个文件（如 `xxx_p1-3.pdf`、`xxx_p5.pdf`）。逗号分隔的各段相互独立，各自产出一个 PDF，不做跨段合并/去重。
+
+## 开源协议
+
+本项目以 [MIT License](LICENSE) 开源。
