@@ -120,6 +120,14 @@ pyinstaller packaging/FileConverter.spec --noconfirm --clean
 
 产物位于 `dist/FileConverter/`。打包与入口说明见 `packaging/FileConverter.spec` 头部注释。
 
+**安装包（Inno Setup）**：在上述 PyInstaller 产物基础上可进一步打出 setup 安装程序（免管理员安装到 `%LOCALAPPDATA%\Programs`，含开始菜单/桌面快捷方式与卸载程序）：
+
+```bash
+iscc /DAppVersion=1.0.0 /DAppTag=v1.0.0 packaging/installer.iss
+```
+
+产物为 `dist/FileConverter-v1.0.0-windows-x64-setup.exe`。GitHub 上推送 `v*` 标签时，Release workflow 会自动构建 zip 与 setup 并发布到 Release。
+
 ## 常见问题
 
 **Q：命令行输出的中文在终端里显示为乱码？**
