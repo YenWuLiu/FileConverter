@@ -25,6 +25,14 @@ def test_list_runs(capsys):
     assert "docx" in out and "png" in out
 
 
+def test_console_encoding_never_crashes(monkeypatch):
+    import io
+
+    # 非中文 Windows（如 cp1252 控制台）无法编码中文输出，不应崩溃
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="cp1252"))
+    assert main(["list"]) == 0
+
+
 def test_convert_implicit_subcommand(tmp_path, capsys):
     src = tmp_path / "a.csv"
     src.write_text("k,v\n1,2\n", encoding="utf-8")

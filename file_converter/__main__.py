@@ -81,7 +81,20 @@ def _cmd_convert(args) -> int:
     return 0 if fail_count == 0 else 1
 
 
+def _tolerate_console_encoding() -> None:
+    # 非中文 Windows 控制台（如 cp1252）无法编码中文输出；保持控制台原生编码，
+    # 仅将无法编码的字符替换为 "?"，避免 UnicodeEncodeError 崩溃
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def main(argv=None) -> int:
+    _tolerate_console_encoding()
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = _build_parser()
     if argv and not argv[0].startswith("-") and argv[0] not in _SUBCOMMANDS:
