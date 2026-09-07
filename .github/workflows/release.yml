@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller packaging/FileConverter.spec --noconfirm --clean
+
+      - name: Smoke test CLI
+        run: dist/FileConverter/FileConverterCLI.exe --help
+
+      - name: Zip distribution
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ("${{ github.event_name }}" -ne "push") { $tag = "snapshot" }
+          Compress-Archive -Path dist/FileConverter -DestinationPath "FileConverter-$tag-windows-x64.zip"
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: FileConverter-${{ github.ref_name }}-windows-x64.zip
+          generate_release_notes: true
+
+      - name: Upload build artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-snapshot-windows-x64
+          path: FileConverter-snapshot-windows-x64.zip
+          retention-days: 7
