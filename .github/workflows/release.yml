@@ -35,11 +35,25 @@ jobs:
           if ("${{ github.event_name }}" -ne "push") { $tag = "snapshot" }
           Compress-Archive -Path dist/FileConverter -DestinationPath "FileConverter-$tag-windows-x64.zip"
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ("${{ github.event_name }}" -ne "push") { $tag = "snapshot" }
+          $ver = $tag -replace '^v', ''
+          if ($ver -notmatch '^\d+\.\d+\.\d+') { $ver = "0.0.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$ver" "/DAppTag=$tag" packaging/installer.iss
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: FileConverter-${{ github.ref_name }}-windows-x64.zip
+          files: |
+            FileConverter-${{ github.ref_name }}-windows-x64.zip
+            dist/FileConverter-${{ github.ref_name }}-windows-x64-setup.exe
           generate_release_notes: true
 
       - name: Upload build artifact
@@ -47,5 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FileConverter-snapshot-windows-x64
-          path: FileConverter-snapshot-windows-x64.zip
+          path: |
+            FileConverter-snapshot-windows-x64.zip
+            dist/FileConverter-snapshot-windows-x64-setup.exe
           retention-days: 7

@@ -27,6 +27,7 @@ tkdnd_datas = collect_data_files("tkinterdnd2")
 
 # GUI 图标：冻结后运行时通过 sys._MEIPASS/file_converter/assets/ 访问
 assets_datas = [(os.path.join(ROOT, "file_converter", "assets"), "file_converter/assets")]
+icon_ico = os.path.join(ROOT, "file_converter", "assets", "icon.ico")
 
 a = Analysis(
     [os.path.join(SPEC_DIR, "entry_gui.py"), os.path.join(SPEC_DIR, "entry_cli.py")],
@@ -72,6 +73,7 @@ exe_gui = EXE(
     strip=False,
     upx=False,
     console=False,
+    icon=icon_ico,
 )
 exe_cli = EXE(
     pyz,
@@ -83,6 +85,7 @@ exe_cli = EXE(
     strip=False,
     upx=False,
     console=True,
+    icon=icon_ico,
 )
 coll = COLLECT(
     exe_gui,
